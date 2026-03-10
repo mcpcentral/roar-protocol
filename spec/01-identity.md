@@ -1,15 +1,140 @@
 # Layer 1: Identity
 
-> Agent registration, DID-based identity, capability tokens, authentication
+> Agent registration, W3C DID-based identity, Ed25519 signing, capability tokens
+
+---
 
 ## Overview
 
-TODO: Detailed specification for the Identity layer.
+Every agent in the ROAR ecosystem has a unique identity based on the [W3C DID](https://www.w3.org/TR/did-core/) standard. Identities are self-sovereign — agents generate their own DIDs without a central authority.
+
+The Identity layer provides:
+- **Unique identification** via DID URIs
+- **Capability declaration** — what an agent can do
+- **Cryptographic signing** — Ed25519 public keys for message authentication
+- **Type classification** — agent, tool, human, or IDE
+
+---
+
+## Agent Identity
+
+### DID Format
+
+```
+did:roar:<agent_type>:<slug>-<unique_id>
+```
+
+Examples:
+```
+did:roar:agent:architect-a1b2c3d4
+did:roar:tool:shell-executor-f5e6d7c8
+did:roar:human:nunu-9a8b7c6d
+did:roar:ide:claude-code-e1f2a3b4
+```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `did` | string | Auto-generated | W3C DID URI. Generated from `agent_type` + `display_name` + random suffix if not provided |
+| `display_name` | string | Recommended | Human-readable name (e.g., "architect", "frontend-dev") |
+| `agent_type` | string | Yes | One of: `agent`, `tool`, `human`, `ide` |
+| `capabilities` | string[] | Recommended | What this agent can do (e.g., `["code", "review", "testing"]`) |
+| `version` | string | Yes | Protocol version (default: "1.0") |
+| `public_key` | string | Optional | Ed25519 public key (hex-encoded) for message signing |
+
+### Agent Types
+
+| Type | Description | Examples |
+|------|-------------|---------|
+| `agent` | Autonomous AI agent | Claude Code terminal, ProwlrBot agent |
+| `tool` | Tool or service | Shell executor, file reader, MCP server |
+| `human` | Human operator | Developer, admin |
+| `ide` | IDE or editor | VS Code, Claude Code, Cursor |
+
+---
 
 ## Wire Format
 
-TODO: Message schema definitions.
+### AgentIdentity
+
+```json
+{
+  "did": "did:roar:agent:architect-a1b2c3d4",
+  "display_name": "architect",
+  "agent_type": "agent",
+  "capabilities": ["python", "api", "architecture"],
+  "version": "1.0",
+  "public_key": null
+}
+```
+
+### AgentCapability
+
+```json
+{
+  "name": "code_review",
+  "description": "Review code for quality, security, and maintainability",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_path": {"type": "string"},
+      "review_type": {"type": "string", "enum": ["quality", "security", "performance"]}
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "issues": {"type": "array"},
+      "score": {"type": "number"}
+    }
+  }
+}
+```
+
+---
 
 ## Examples
 
-TODO: Request/response examples.
+### Create an agent identity
+
+```python
+from prowlrbot.protocols.roar import AgentIdentity
+
+agent = AgentIdentity(
+    display_name="backend-architect",
+    agent_type="agent",
+    capabilities=["python", "api", "database", "architecture"],
+)
+
+print(agent.did)       # did:roar:agent:backend-architect-a1b2c3d4
+print(agent.version)   # 1.0
+```
+
+### Auto-generated DID
+
+If no `did` is provided, one is generated from `agent_type` + `display_name` + random suffix:
+
+```python
+agent = AgentIdentity(display_name="my-agent")
+# agent.did → "did:roar:agent:my-agent-f5e6d7c8"
+```
+
+### Identity with signing key
+
+```python
+agent = AgentIdentity(
+    display_name="secure-agent",
+    public_key="a1b2c3d4e5f6..."  # Ed25519 hex-encoded
+)
+```
+
+---
+
+## Security Considerations
+
+- DIDs are **self-sovereign** — no central registry required for generation
+- The `public_key` field enables **message authentication** without shared secrets
+- Agent types constrain what actions are expected (tools execute, agents delegate)
+- Capabilities are **advisory** — they declare intent but don't enforce access control
+- For access control, combine identity with the Connect layer's auth methods (HMAC, JWT, mTLS)
